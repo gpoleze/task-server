@@ -7,20 +7,63 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class ClienteTarefas {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
 
         Socket socket = new Socket("localhost", 12345);
 
         System.out.println("Conexão estabalecida");
 
-        PrintStream saida = new PrintStream(socket.getOutputStream());
-        saida.println("c1");
+        Runnable enviaDados = () -> {
+            try (PrintStream saida = new PrintStream(socket.getOutputStream())) {
 
-        Scanner teclado = new Scanner(System.in);
-        teclado.nextLine();
+                System.out.println("Servidor ouvindo, pode enviar comandos!");
+                Scanner teclado = new Scanner(System.in);
 
-        saida.close();
-        teclado.close();
+                while (teclado.hasNextLine()) {
+                    String linha = teclado.nextLine();
+
+                    if (linha.trim().matches("(\\\\exit)")){
+                        System.out.println("Comando fechar conexao recebido.");
+                        break;}
+
+                    saida.println(linha);
+
+                }
+
+                saida.close();
+                teclado.close();
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+
+        Runnable recebeDados = () -> {
+            try {
+                System.out.println("Recebendo dados do servidor");
+                Scanner repostaServidor = new Scanner(socket.getInputStream());
+
+                while (repostaServidor.hasNextLine()) {
+                    String linha = repostaServidor.nextLine();
+
+                    System.out.println("Resposta do servidor: " + linha);
+                }
+
+                repostaServidor.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+
+        Thread threadEnviaComando = new Thread(enviaDados);
+        Thread threadRecebeResposta = new Thread(recebeDados);
+
+        threadEnviaComando.start();
+        threadRecebeResposta.start();
+
+        threadEnviaComando.join();
+
+        System.out.println("Fechando socket do Cliente");
         socket.close();
     }
 }
